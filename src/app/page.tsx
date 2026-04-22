@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { MethodologyChart } from "@/components/MethodologyChart";
+import { PickActions } from "@/components/PickActions";
 import { RlGovernorPanel } from "@/components/RlGovernorPanel";
 import { SectorHeatmap } from "@/components/SectorHeatmap";
 import { getGovernorSnapshot } from "@/lib/rl-governor";
@@ -41,6 +42,8 @@ export default async function HomePage() {
             <InfoCard label="Commodity tape" value={snapshot.marketContext.commodityIndex} />
             <InfoCard label="Governor rule" value={snapshot.marketContext.notes[0] ?? "Live governor active"} />
           </div>
+
+          <PickActions />
         </div>
 
         <div className="mt-8 grid gap-8 xl:grid-cols-[1.25fr_0.95fr]">

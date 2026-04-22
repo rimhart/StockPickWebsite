@@ -156,6 +156,30 @@ export async function saveState(state: PersistedRlState) {
   }
 }
 
+export async function resetState(defaultState: PersistedRlState) {
+  const db = getPool();
+
+  if (!db) {
+    return;
+  }
+
+  const client = await db.connect();
+  try {
+    await ensureSchema(client);
+    await client.query(
+      `
+      insert into rl_governor_state (id, payload, updated_at)
+      values ($1, $2::jsonb, now())
+      on conflict (id)
+      do update set payload = excluded.payload, updated_at = excluded.updated_at
+      `,
+      [STATE_ID, JSON.stringify(defaultState)],
+    );
+  } finally {
+    client.release();
+  }
+}
+
 export function hasDatabaseUrl() {
   return Boolean(process.env.DATABASE_URL);
 }

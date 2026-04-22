@@ -1,7 +1,7 @@
 import { unstable_noStore as noStore } from "next/cache";
 
 import { squadConfigs } from "@/lib/data";
-import { loadState as loadPersistedRlState, saveState as savePersistedRlState } from "@/lib/rl-db";
+import { loadState as loadPersistedRlState, resetState as resetPersistedRlState, saveState as savePersistedRlState } from "@/lib/rl-db";
 import type { GovernorSnapshot, MethodologyPoint, PickRow, SquadConfig, SquadKey, SquadSnapshot } from "@/lib/types";
 import type { PersistedRlState } from "@/lib/rl-db";
 
@@ -79,6 +79,10 @@ function getDefaultRlState(): RlState {
     gamma: 0.9,
     policyLearningRate: 0.08,
   };
+}
+
+export async function resetGovernorState() {
+  await resetPersistedRlState(getDefaultRlState());
 }
 
 function clamp(value: number, min: number, max: number) {
