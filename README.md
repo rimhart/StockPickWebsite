@@ -27,10 +27,11 @@ git push -u origin main
 
 3. Go to Vercel and import the GitHub repository.
 4. Keep the default Next.js settings.
-5. Deploy.
+5. Add a `DATABASE_URL` environment variable in Vercel.
+6. Deploy.
 
 ## Important note
 
-The RL governor currently keeps its learning state in memory when filesystem writes are unavailable.
-That means the site will work on Vercel, but the learning history may reset on cold starts or new serverless instances.
-For durable learning, connect the governor state to an external store such as Vercel KV, Supabase, or Postgres.
+The RL governor now persists its learning state in PostgreSQL when `DATABASE_URL` is set.
+For Vercel, use a managed Postgres provider such as Neon or Vercel Postgres and point `DATABASE_URL` to it.
+If `DATABASE_URL` is missing, the app still runs with an in-memory fallback, but learning will reset on cold starts.

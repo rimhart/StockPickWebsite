@@ -4,3 +4,4 @@ coverage
 .env*
 !.env.example
 data/governor-rl-state.json
+.vercel

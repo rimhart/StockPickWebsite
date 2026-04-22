@@ -1,9 +1,9 @@
 import { unstable_noStore as noStore } from "next/cache";
-import { mkdir, readFile, writeFile } from "fs/promises";
-import { dirname, join } from "path";
 
 import { squadConfigs } from "@/lib/data";
+import { loadState as loadPersistedRlState, saveState as savePersistedRlState } from "@/lib/rl-db";
 import type { GovernorSnapshot, MethodologyPoint, PickRow, SquadConfig, SquadKey, SquadSnapshot } from "@/lib/types";
+import type { PersistedRlState } from "@/lib/rl-db";
 
 type YahooChartResponse = {
   chart?: {
@@ -52,43 +52,8 @@ type MarketSnapshot = {
   prices: Map<string, PriceSnapshot>;
 };
 
-type RlEpisode = {
-  timestamp: string;
-  stateKey: string;
-  actionSquad: SquadKey;
-  ticker: string;
-  entryPrice: number;
-  entryIhsg: number;
-  qBefore: number;
-  qAfter: number;
-  policyBefore: number;
-  policyAfter: number;
-  reward: number;
-  alphaReward: number;
-  consistencyBonus: number;
-  drawdownPenalty: number;
-  outperformancePct: number;
-};
-
-type PendingEpisode = {
-  timestamp: string;
-  stateKey: string;
-  actionSquad: SquadKey;
-  ticker: string;
-  entryPrice: number;
-  entryIhsg: number;
-};
-
-type RlState = {
-  qTable: Partial<Record<string, Record<SquadKey, number>>>;
-  policyPrefs: Record<SquadKey, number>;
-  history: RlEpisode[];
-  pendingEpisode: PendingEpisode | null;
-  epsilon: number;
-  alpha: number;
-  gamma: number;
-  policyLearningRate: number;
-};
+type RlState = PersistedRlState;
+type RlEpisode = PersistedRlState["history"][number];
 
 const REUTERS_FEEDS = [
   "https://feeds.reuters.com/reuters/businessNews",
@@ -96,24 +61,25 @@ const REUTERS_FEEDS = [
 ];
 
 const YAHOO_TICKER_SUFFIX = ".JK";
-const STATE_FILE = join(process.cwd(), "data", "governor-rl-state.json");
-let memoryState: RlState | null = null;
-const DEFAULT_STATE: RlState = {
-  qTable: {},
-  policyPrefs: {
-    energy: 0,
-    cpo: 0,
-    banks: 0,
-    ev: 0,
-    speculative: 0,
-  },
-  history: [],
-  pendingEpisode: null,
-  epsilon: 0.12,
-  alpha: 0.25,
-  gamma: 0.9,
-  policyLearningRate: 0.08,
-};
+
+function getDefaultRlState(): RlState {
+  return {
+    qTable: {},
+    policyPrefs: {
+      energy: 0,
+      cpo: 0,
+      banks: 0,
+      ev: 0,
+      speculative: 0,
+    },
+    history: [],
+    pendingEpisode: null,
+    epsilon: 0.12,
+    alpha: 0.25,
+    gamma: 0.9,
+    policyLearningRate: 0.08,
+  };
+}
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
@@ -365,40 +331,11 @@ function ensureRow(qTable: RlState["qTable"], stateKey: string) {
 }
 
 async function loadRlState(): Promise<RlState> {
-  if (memoryState) {
-    return structuredClone(memoryState);
-  }
-
-  try {
-    const raw = await readFile(STATE_FILE, "utf8");
-    const parsed = JSON.parse(raw) as Partial<RlState>;
-
-    return {
-      ...DEFAULT_STATE,
-      ...parsed,
-      policyPrefs: {
-        ...DEFAULT_STATE.policyPrefs,
-        ...(parsed.policyPrefs ?? {}),
-      },
-      history: Array.isArray(parsed.history) ? parsed.history : [],
-      pendingEpisode: parsed.pendingEpisode ?? null,
-      qTable: parsed.qTable ?? {},
-    };
-  } catch {
-    memoryState = structuredClone(DEFAULT_STATE);
-    return structuredClone(DEFAULT_STATE);
-  }
+  return loadPersistedRlState(getDefaultRlState());
 }
 
 async function saveRlState(state: RlState) {
-  memoryState = structuredClone(state);
-
-  try {
-    await mkdir(dirname(STATE_FILE), { recursive: true });
-    await writeFile(STATE_FILE, JSON.stringify(state, null, 2), "utf8");
-  } catch {
-    memoryState = structuredClone(state);
-  }
+  await savePersistedRlState(state);
 }
 
 function buildWhyBullets(args: {
@@ -463,7 +400,7 @@ function buildPick(args: {
 
 function updatePolicyPrefs(policyPrefs: RlState["policyPrefs"], actionSquad: SquadKey, reward: number, baseline: number, policyWeight: number) {
   const advantage = reward - baseline;
-  const step = DEFAULT_STATE.policyLearningRate * advantage;
+  const step = getDefaultRlState().policyLearningRate * advantage;
 
   return {
     ...policyPrefs,
